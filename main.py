@@ -30,7 +30,15 @@ def main(string_search, get_url, prices_number):
     price_tags = parsed.findAll('span', attrs={ 'class' : 'price__fraction' })
 
     # Getting raw prices (int values)
-    prices = [ convert_international(price.getText(strip=True, )) for price in price_tags ][:prices_number]
+    prices = [ convert_international(price.getText(strip=True, )) for price in price_tags ]
+
+    max_prices = len(prices)
+
+    if prices_number > max_prices:
+        raise click.ClickException('Exceeded the max number of prices (50). ')
+
+    prices = prices[:prices_number]
+
     prices.sort(reverse=True)
 
     minimum = prices[-1]
