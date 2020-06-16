@@ -1,5 +1,6 @@
 import click
 import requests
+import re
 from bs4 import BeautifulSoup
 
 def slugify(string):
@@ -11,54 +12,101 @@ def convert_international(price: str) -> int:
 @click.command()
 @click.option('-u', '--get-url', 'get_url', flag_value=True, default=False)
 @click.option('-l', '--get-list', 'get_list', flag_value=True, default=False)
-@click.option('-a', '--get-average', 'get_average', flag_value=True, default=False)
-@click.option('-p', '--prices-number', 'prices_number', type=int, default=40)
+@click.option('-a', '--get-avg', 'get_avg', flag_value=True, default=False)
 @click.argument('string_search', type=str)
-def main(string_search, get_url, get_list, prices_number, get_average):
+def main(string_search, get_avg, get_url, get_list):
     url = 'https://listado.mercadolibre.com.ar/'
     search = slugify(string_search)
 
     complete_url = url + search # + '_OrderId_PRICE*DESC'
 
-    # glenlivet-founder-reserve
     response = requests.get(complete_url)
 
     parsed = BeautifulSoup(response.text, 'html.parser')
 
-    price_tags = parsed.findAll('span', attrs={ 'class' : 'price__fraction' })
+    keywords = string_search.replace('\'', ' ')
+    keywords = string_search.replace('`', ' ')
+    keywords = keywords.split(' ')
 
-    # Getting raw prices (int values)
-    prices = [ convert_international(price.getText(strip=True, )) for price in price_tags ]
+    keywords = [ word.lower() for word in keywords ]
+
+    def has_keywords(post):
+        attrs = ' '.join(post.attrs.get('class', [])).strip()
+
+        if attrs != 'rowItem item highlighted item--stack new' or post.name != 'div':
+            return False
+
+        found_dict = { key : False for key in keywords }
+
+        text = post.find('h2', recursive=True).getText()
+
+        text = text.replace('\'', ' ')
+
+        words = text.split(' ')
+
+        words = [ word.lower() for word in words if len(word) > 0 ]
+
+        for keyword in keywords:
+            for word in words:
+                if keyword in word:
+                    found_dict[keyword] = True
+
+        for key, value in found_dict.items():
+            if not value:
+                return False
+
+        return True
+
+    posts = parsed.find_all(has_keywords)
+
+    list_posts_names = [ post.find('h2').getText().strip() for post in posts ]
+
+    prices = []
+
+    for post in posts:
+        price = post.find('span', attrs={ 'class' : 'price__fraction' })
+
+        price = convert_international(price.getText())
+
+        prices.append(price)
+
     prices.sort()
 
-    max_prices = len(prices)
-
-    if prices_number > max_prices:
-        raise click.ClickException('Exceeded the max number of prices (50). ')
-
-    prices = prices[:prices_number]
-
-    average = 0
-
-    for value in prices:
-        average += value
-
-    average //= len(prices)
-
-    minimum = prices[0]
-    maximum = prices[-1]
-
-    print(f'Max price: {maximum}')
-    print(f'Min price: {minimum}')
-
     if get_url:
+        print('-' * 25)
         print(complete_url)
 
     if get_list:
+        print('-' * 25)
+        print(list_posts_names)
+
+    print('-' * 25)
+    print(f'Got {len(prices)} results. ')
+
+    if len(prices) > 2:
+        maximum = prices[-1]
+        minimum = prices[0]
+
+        average = 0
+        
+        for price in prices:
+            average += price
+
+        average //= len(prices)
+
+        average_calculated = (maximum - average) * 0.5 + average
+
+        print(f'Max price: {maximum}')
+        print(f'Min price: {minimum}')
+        # print(f'50% more than average: {average_calculated}')
+
+        if get_avg:
+            print(f'Average price: {average}')
+
+    else:
         print(prices)
 
-    if get_average:
-        print(f'Average: {average}')
+    print('-' * 25)
 
 if __name__ == '__main__':
     main()
