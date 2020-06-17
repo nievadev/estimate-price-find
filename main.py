@@ -3,6 +3,16 @@ import requests
 import re
 from bs4 import BeautifulSoup
 
+def get_keywords(string, *replace_chars):
+    for character in replace_chars:
+        string_to_return = string.replace(character, ' ')
+
+    string_to_return = string_to_return.split(' ')
+
+    string_to_return = [ keyword.lower() for keyword in string_to_return if len(keyword) > 0 ]
+
+    return string_to_return
+
 def slugify(string):
     return string.lower().replace(' ', '-')
 
@@ -16,6 +26,7 @@ def convert_international(price: str) -> int:
 @click.argument('string_search', type=str)
 def main(string_search, get_avg, get_url, get_list):
     url = 'https://listado.mercadolibre.com.ar/'
+
     search = slugify(string_search)
 
     complete_url = url + search # + '_OrderId_PRICE*DESC'
@@ -24,11 +35,7 @@ def main(string_search, get_avg, get_url, get_list):
 
     parsed = BeautifulSoup(response.text, 'html.parser')
 
-    keywords = string_search.replace('\'', ' ')
-    keywords = string_search.replace('`', ' ')
-    keywords = keywords.split(' ')
-
-    keywords = [ word.lower() for word in keywords ]
+    keywords = get_keywords(string_search, '`', '\'')
 
     def has_keywords(post):
         attrs = ' '.join(post.attrs.get('class', [])).strip()
@@ -40,11 +47,7 @@ def main(string_search, get_avg, get_url, get_list):
 
         text = post.find('h2', recursive=True).getText()
 
-        text = text.replace('\'', ' ')
-
-        words = text.split(' ')
-
-        words = [ word.lower() for word in words if len(word) > 0 ]
+        words = get_keywords(text, '\'', ' ')
 
         for keyword in keywords:
             for word in words:
@@ -61,8 +64,6 @@ def main(string_search, get_avg, get_url, get_list):
 
     list_posts_names = [ post.find('h2').getText().strip() for post in posts ]
 
-    prices = list()
-
     dict_info = dict()
 
     for post in posts:
@@ -72,13 +73,9 @@ def main(string_search, get_avg, get_url, get_list):
 
         price = convert_international(price.getText())
 
-        prices.append(price)
-
         dict_info[title_post] = price
 
     sorted_dict_info = sorted(dict_info.items(), key=lambda x: x[1])
-
-    prices.sort()
 
     if get_url:
         print('-' * 25)
@@ -89,9 +86,9 @@ def main(string_search, get_avg, get_url, get_list):
         print(list_posts_names)
 
     print('-' * 25)
-    print(f'Got {len(prices)} results. ')
+    print(f'Got {len(sorted_dict_info)} results. ')
 
-    if len(prices) > 2:
+    if len(sorted_dict_info) > 2:
         maximum = sorted_dict_info[-1]
         b_maximum = sorted_dict_info[-2]
 
@@ -100,10 +97,10 @@ def main(string_search, get_avg, get_url, get_list):
 
         average = 0
         
-        for price in prices:
-            average += price
+        for price in sorted_dict_info:
+            average += price[1]
 
-        average //= len(prices)
+        average //= len(sorted_dict_info)
 
         average_calculated = (maximum[1] - average) * 0.5 + average
 
