@@ -61,14 +61,22 @@ def main(string_search, get_avg, get_url, get_list):
 
     list_posts_names = [ post.find('h2').getText().strip() for post in posts ]
 
-    prices = []
+    prices = list()
+
+    dict_info = dict()
 
     for post in posts:
+        title_post = post.find('h2').getText().strip()
+
         price = post.find('span', attrs={ 'class' : 'price__fraction' })
 
         price = convert_international(price.getText())
 
         prices.append(price)
+
+        dict_info[title_post] = price
+
+    sorted_dict_info = sorted(dict_info.items(), key=lambda x: x[1])
 
     prices.sort()
 
@@ -84,8 +92,11 @@ def main(string_search, get_avg, get_url, get_list):
     print(f'Got {len(prices)} results. ')
 
     if len(prices) > 2:
-        maximum = prices[-1]
-        minimum = prices[0]
+        maximum = sorted_dict_info[-1]
+        b_maximum = sorted_dict_info[-2]
+
+        minimum = sorted_dict_info[0]
+        b_minimum = sorted_dict_info[1]
 
         average = 0
         
@@ -94,17 +105,21 @@ def main(string_search, get_avg, get_url, get_list):
 
         average //= len(prices)
 
-        average_calculated = (maximum - average) * 0.5 + average
+        average_calculated = (maximum[1] - average) * 0.5 + average
 
-        print(f'Max price: {maximum}')
-        print(f'Min price: {minimum}')
+        print(f'Max price -> {maximum[0]}: {maximum[1]}')
+        print(f'2nd max price -> {b_maximum[0]}: {b_maximum[1]}')
+
+        print(f'2nd min price -> {b_minimum[0]}: {b_minimum[1]}')
+        print(f'Min price -> {minimum[0]}: {minimum[1]}')
+
         # print(f'50% more than average: {average_calculated}')
 
         if get_avg:
             print(f'Average price: {average}')
 
     else:
-        print(prices)
+        print(sorted_dict_info)
 
     print('-' * 25)
 
